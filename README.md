@@ -1,10 +1,10 @@
 # radar-detection-clustering
 
-Provides a minimal class to load data from the recordings that have been created with our radar-camera setup. The Recording class reads the radar settings and handles all the DSP processing that is required to extract detection from each radar frame.
+Provides a minimal class to load data from the recordings that have been created with our radar-camera setup. The Recording class reads the radar settings and handles all the digital signal processing required to extract detections from each radar frame.
 
-To demostrate the clustering of radar detections, the DBSCAN algorithm is utilized. The results are visualized in both the range-doppler map but also the cartesian plane after tranforming the polar coordinates to cartesian. Keep in mind that the detections do not belong to any cluster (noise) are not shown. 
-
+To demonstrate the clustering of radar detections, we utilize the DBSCAN algorithm. The results are visualized in both the range-doppler map and the cartesian plane after transforming the polar coordinates to cartesian. Keep in mind that the detections which do not belong to any cluster (noise) do not appear on the plots. 
 
 ### Todo
 
-- [ ] Try tranforming the radar detection coordinates to cartesian before clustering
+- [ ] Try transforming the radar detection coordinates to cartesian before clustering
+- [ ] Improve the range-doppler map filtering, especially for the static objects
