@@ -18,8 +18,9 @@ def mag(signal):
 
 # Minimal recording class to load data from recording folder
 class Recording():
-    def __init__(self, directory):
+    def __init__(self, directory, raw=True):
         self.directory = directory
+        self.has_raw = raw
         self.settings, self.profiles, self.meta = self.parse_info(directory)
         self.noise_floor = self._noise_floor()
 
@@ -72,22 +73,25 @@ class Recording():
     # The 2 FFTs are computing the range and velocity
     # Window is applied before each FFT to reduce spectrum leakage
     def rd_cube(self, idx):
-        # Get Radar Cube from Raw File
-        raw_cube = self.raw(idx)
-        antennas, chirps, samples = raw_cube.shape
-        # Compute Range FFT
-        window = signal.windows.hann(samples)[np.newaxis, np.newaxis, :]
-        raw_cube = raw_cube * window
-        range_cube = np.fft.rfft(raw_cube, axis=2)
-        range_cube /= samples * (1 / np.mean(window))
-        range_cube = range_cube[:, :, 0:samples//2]
-        # Compute Velocity FFT
-        window = signal.windows.hann(chirps)[np.newaxis, :, np.newaxis]
-        range_cube = range_cube * window
-        range_doppler_cube = np.fft.fft(range_cube, axis=1)
-        range_doppler_cube = np.fft.fftshift(range_doppler_cube, axes=1)
-        range_doppler_cube /= chirps * (1 / np.mean(window))
-        return range_doppler_cube
+        if self.has_raw:
+            # Get Radar Cube from Raw File
+            raw_cube = self.raw(idx)
+            antennas, chirps, samples = raw_cube.shape
+            # Compute Range FFT
+            window = signal.windows.hann(samples)[np.newaxis, np.newaxis, :]
+            raw_cube = raw_cube * window
+            range_cube = np.fft.rfft(raw_cube, axis=2)
+            range_cube /= samples * (1 / np.mean(window))
+            range_cube = range_cube[:, :, 0:samples//2]
+            # Compute Velocity FFT
+            window = signal.windows.hann(chirps)[np.newaxis, :, np.newaxis]
+            range_cube = range_cube * window
+            range_doppler_cube = np.fft.fft(range_cube, axis=1)
+            range_doppler_cube = np.fft.fftshift(range_doppler_cube, axes=1)
+            range_doppler_cube /= chirps * (1 / np.mean(window))
+            return range_doppler_cube
+        else:
+            return self.get_processed_fft_cube(idx)
 
     # To find the noise floor and use it in order to threshold the range-doppler map
     # we compute an average of some (50 in this case) range-doppler maps.
@@ -102,6 +106,27 @@ class Recording():
         threshold = np.mean(threshold, axis=0)
         noise_floor = np.repeat(threshold[np.newaxis, :], chirps, axis=0)
         return noise_floor
+
+    def get_processed_fft_cube(self, idx, aoa=False):
+        chirps = self.settings['chirps/tx'][0]
+        samples = self.settings['halfsamples'][0]
+        antennas = self.settings['virtual antennas'][0]
+        filename = os.path.join(self.directory, "processed " + str(idx) + ".dat")
+        try:
+            frame = np.fromfile(filename, dtype=np.complex64)
+        except FileNotFoundError:
+            frame = np.ones((chirps * samples * antennas), dtype=np.complex64)
+        cube_slices = np.split(frame, antennas * 2)            
+        cube = np.zeros((chirps, samples, antennas), dtype=np.complex64)
+        for antenna in range(antennas):
+            rd_low = cube_slices[antenna*2]
+            rd_high = cube_slices[antenna*2+1]
+            range_doppler = np.concatenate((rd_high, rd_low))
+            range_doppler = range_doppler.reshape((chirps, samples))
+            cube[:, :, antenna] = range_doppler
+        cube = cube.transpose(2, 0, 1)
+        cube = np.delete(cube,samples-1, 2)
+        return cube
 
     # Returns the range-doppler map which is computed by keeping the max value
     # of the 2DFFT processed cube along the antenna axis.
@@ -164,8 +189,9 @@ class Recording():
 #
 
 # Load a recording
-rec_folder = 'C:/DataSet/bastilleveld_south_east_1'
-rec = Recording(rec_folder)
+rec_folders = ['D:/DataSet/roomweg_east', 'D:/DataSet/spiegel_east', 'D:/DataSet/new_parking_pc']
+# rec = Recording(rec_folders[0])
+rec = Recording(rec_folders[2], raw=False)
 
 # Choose a random index
 idx = np.random.randint(0, len(rec))
